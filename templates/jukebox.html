@@ -22,6 +22,38 @@
         .container-main {
             padding-top: 20px;
         }
+        .playlist-header {
+            background-color: #282828;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .playlist-info h3 {
+            color: #1DB954;
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .playlist-info p {
+            color: #b3b3b3;
+            margin: 5px 0 0 0;
+        }
+        .btn-change-playlist {
+            background-color: #1DB954;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.95em;
+            transition: background-color 0.3s ease;
+            white-space: nowrap;
+        }
+        .btn-change-playlist:hover {
+            background-color: #1ed760;
+            color: white;
+        }
         .track-list {
             list-style: none;
             padding: 0;
@@ -91,7 +123,17 @@
     </nav>
 
     <div class="container container-main">
-        <h2 class="text-white mb-4">Escolha uma música da playlist:</h2>
+        <div class="playlist-header">
+            <div class="playlist-info">
+                <h3 id="playlist-name">Carregando...</h3>
+                <p id="playlist-tracks-count"></p>
+            </div>
+                <button class="btn btn-change-playlist" onclick="window.location.href = '{{ url_for('select_playlist') }}'">
+                Trocar Playlist
+            </button>
+        </div>
+
+        <h2 class="text-white mb-4">Escolha uma música:</h2>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -107,7 +149,7 @@
             <div class="spinner-border" role="status">
                 <span class="sr-only">Carregando...</span>
             </div>
-            <p class="text-muted mt-2">Carregando playlist...</p>
+            <p class="text-muted mt-2">Carregando músicas da playlist...</p>
         </div>
 
         <ul id="track-list" class="track-list">
@@ -122,6 +164,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             const trackList = document.getElementById('track-list');
             const loadingSpinner = document.getElementById('loading-spinner');
+            const playlistName = document.getElementById('playlist-name');
+            const playlistTracksCount = document.getElementById('playlist-tracks-count');
 
             function displayFlashMessage(message, category) {
                 const container = document.querySelector('.container-main');
@@ -129,11 +173,10 @@
                 alertDiv.className = `alert alert-${category} mt-3`;
                 alertDiv.setAttribute('role', 'alert');
                 alertDiv.innerHTML = message;
-                container.prepend(alertDiv); // Adiciona no início do container
-                setTimeout(() => alertDiv.remove(), 5000); // Remove após 5 segundos
+                container.querySelector('h2').insertAdjacentElement('beforebegin', alertDiv);
+                setTimeout(() => alertDiv.remove(), 5000);
             }
 
-            // Função para carregar as músicas da playlist
             async function loadPlaylistTracks() {
                 loadingSpinner.style.display = 'block';
                 try {
@@ -141,7 +184,9 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        trackList.innerHTML = ''; // Limpa a lista existente
+                        trackList.innerHTML = '';
+                        playlistTracksCount.textContent = `${data.tracks.length} música${data.tracks.length !== 1 ? 's' : ''}`;
+                        
                         data.tracks.forEach(track => {
                             const listItem = document.createElement('li');
                             listItem.className = 'track-item';
@@ -151,7 +196,7 @@
                                     <h5>${track.name}</h5>
                                     <p>${track.artist}</p>
                                 </div>
-                                <button class="btn btn-add\" data-track-uri="${track.uri}">
+                                <button class="btn btn-add" data-track-uri="${track.uri}">
                                     Adicionar à Fila
                                 </button>
                             `;
@@ -160,8 +205,10 @@
                         addQueueButtonListeners();
                     } else {
                         displayFlashMessage(data.error || 'Erro ao carregar a playlist.', 'danger');
-                        if (response.status === 401) { // Não autenticado ou token expirado
+                        if (response.status === 401) {
                             setTimeout(() => window.location.href = '{{ url_for("index") }}', 3000);
+                        } else if (response.status === 400) {
+                            setTimeout(() => window.location.href = '{{ url_for("select_playlist") }}', 3000);
                         }
                     }
                 } catch (error) {
@@ -172,12 +219,11 @@
                 }
             }
 
-            // Função para adicionar listeners aos botões \"Adicionar à Fila\"
             function addQueueButtonListeners() {
                 document.querySelectorAll('.btn-add').forEach(button => {
                     button.addEventListener('click', async function() {
                         const trackUri = this.dataset.trackUri;
-                        this.disabled = true; // Desabilita o botão para evitar cliques múltiplos
+                        this.disabled = true;
                         this.textContent = 'Adicionando...';
 
                         try {
@@ -194,7 +240,7 @@
                                 displayFlashMessage(data.message, 'success');
                             } else {
                                 displayFlashMessage(data.error || 'Erro ao adicionar música à fila.', 'danger');
-                                if (response.status === 401) { // Não autenticado ou token expirado
+                                if (response.status === 401) {
                                     setTimeout(() => window.location.href = '{{ url_for("index") }}', 3000);
                                 }
                             }
@@ -202,14 +248,14 @@
                             console.error('Erro ao adicionar à fila:', error);
                             displayFlashMessage('Não foi possível conectar ao servidor para adicionar à fila.', 'danger');
                         } finally {
-                            this.disabled = false; // Habilita o botão novamente
+                            this.disabled = false;
                             this.textContent = 'Adicionar à Fila';
                         }
                     });
                 });
             }
 
-            loadPlaylistTracks(); // Carrega as músicas quando a página carrega
+            loadPlaylistTracks();
         });
     </script>
 </body>
