@@ -226,14 +226,24 @@
                         this.disabled = true;
                         this.textContent = 'Adicionando...';
 
-                        try {
-                            const response = await fetch('/api/add_to_queue', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ track_uri: trackUri })
-                            });
+                       try {
+    const trackButton = this;
+    const trackItem = trackButton.closest('.track-item');
+    const trackName = trackItem.querySelector('.track-info h5').textContent;
+    const trackArtist = trackItem.querySelector('.track-info p').textContent;
+    
+    const response = await fetch('/api/add_to_queue', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            track_uri: trackUri,
+            track_id: trackUri.split(':')[2], // Extrai o ID do URI (spotify:track:ID)
+            track_name: trackName,
+            track_artist: trackArtist
+        })
+    });
                             const data = await response.json();
 
                             if (response.ok) {
