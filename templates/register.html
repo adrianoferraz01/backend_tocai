@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro - Jukebox Spotify</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            background-color: #282828;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #1DB954;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .form-group label {
+            color: #b3b3b3;
+        }
+        .form-control {
+            background-color: #3a3a3a;
+            color: #fff;
+            border-color: #555;
+        }
+        .form-control:focus {
+            background-color: #3a3a3a;
+            color: #fff;
+            border-color: #1DB954;
+            box-shadow: 0 0 0 0.2rem rgba(29, 185, 84, 0.25);
+        }
+        .btn-register {
+            background-color: #1DB954;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1em;
+            border-radius: 30px;
+            width: 100%;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+        }
+        .btn-register:hover {
+            background-color: #1ed760;
+            color: white;
+        }
+        .text-center a {
+            color: #1DB954;
+            text-decoration: none;
+        }
+        .text-center a:hover {
+            color: #1ed760;
+        }
+        .alert {
+            margin-bottom: 20px;
+        }
+        .password-requirements {
+            font-size: 0.85em;
+            color: #b3b3b3;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ Criar Conta</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Senha</label>
+                <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                <div class="password-requirements">
+                    Mínimo 6 caracteres
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password_confirm">Confirmar Senha</label>
+                <input type="password" class="form-control" id="password_confirm" name="password_confirm" required minlength="6">
+            </div>
+
+            <button type="submit" class="btn btn-register">Criar Conta</button>
+        </form>
+
+        <p class="text-center mt-4">
+            Já tem conta? <a href="{{ url_for('login') }}">Fazer login aqui</a>
+        </p>
+
+        <p class="text-center mt-3">
+            <a href="{{ url_for('index') }}">Voltar para início</a>
+        </p>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

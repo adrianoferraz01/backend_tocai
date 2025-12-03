@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jukebox Spotify</title>
+    <title>Login - Jukebox Spotify</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -21,75 +21,58 @@
             padding: 40px;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            text-align: center;
             max-width: 500px;
+            width: 100%;
         }
-        .btn-spotify {
+        h1 {
+            color: #1DB954;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .form-group label {
+            color: #b3b3b3;
+        }
+        .form-control {
+            background-color: #3a3a3a;
+            color: #fff;
+            border-color: #555;
+        }
+        .form-control:focus {
+            background-color: #3a3a3a;
+            color: #fff;
+            border-color: #1DB954;
+            box-shadow: 0 0 0 0.2rem rgba(29, 185, 84, 0.25);
+        }
+        .btn-login {
             background-color: #1DB954;
             color: white;
             border: none;
             padding: 12px 30px;
             font-size: 1.1em;
             border-radius: 30px;
-            transition: background-color 0.3s ease;
             width: 100%;
-            margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
         }
-        .btn-spotify:hover {
+        .btn-login:hover {
             background-color: #1ed760;
             color: white;
         }
-        .btn-secondary {
-            background-color: #555;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1.1em;
-            border-radius: 30px;
-            transition: background-color 0.3s ease;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        .btn-secondary:hover {
-            background-color: #777;
-            color: white;
-        }
-        h1 {
+        .text-center a {
             color: #1DB954;
-            margin-bottom: 20px;
+            text-decoration: none;
         }
-        p {
-            margin-bottom: 20px;
+        .text-center a:hover {
+            color: #1ed760;
         }
         .alert {
-            margin-top: 20px;
-        }
-        .divider {
-            margin: 30px 0;
-            position: relative;
-            text-align: center;
-        }
-        .divider::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background-color: #555;
-        }
-        .divider span {
-            background-color: #282828;
-            padding: 0 10px;
-            position: relative;
-            color: #b3b3b3;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎶 Jukebox Spotify</h1>
-        <p>Crie sua própria jukebox e controle a reprodução do Spotify!</p>
+        <h1>🔓 Login</h1>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -101,17 +84,27 @@
             {% endif %}
         {% endwith %}
 
-        <a href="{{ url_for('login') }}" class="btn btn-spotify">
-            🔓 Entrar
-        </a>
+        <form method="POST">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" class="form-control" id="email" name="email" required>
+            </div>
 
-        <div class="divider">
-            <span>ou</span>
-        </div>
+            <div class="form-group">
+                <label for="password">Senha</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
 
-        <a href="{{ url_for('register') }}" class="btn btn-secondary">
-            ✨ Criar Conta
-        </a>
+            <button type="submit" class="btn btn-login">Entrar</button>
+        </form>
+
+        <p class="text-center mt-4">
+            Não tem conta? <a href="{{ url_for('register') }}">Criar uma conta aqui</a>
+        </p>
+
+        <p class="text-center mt-3">
+            <a href="{{ url_for('index') }}">Voltar para início</a>
+        </p>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

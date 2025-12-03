@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jukebox Spotify</title>
+    <title>Conta Spotify Já Vinculada</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -21,97 +21,74 @@
             padding: 40px;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
             text-align: center;
-            max-width: 500px;
         }
-        .btn-spotify {
+        h1 {
+            color: #ff6b6b;
+            margin-bottom: 20px;
+        }
+        .alert-warning-custom {
+            background-color: #3a2a1a;
+            border: 2px solid #ff6b6b;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            color: #ffcccc;
+        }
+        .btn-option {
             background-color: #1DB954;
             color: white;
             border: none;
             padding: 12px 30px;
-            font-size: 1.1em;
+            font-size: 1em;
             border-radius: 30px;
+            margin: 10px;
             transition: background-color 0.3s ease;
-            width: 100%;
-            margin-bottom: 10px;
         }
-        .btn-spotify:hover {
+        .btn-option:hover {
             background-color: #1ed760;
             color: white;
         }
-        .btn-secondary {
+        .btn-cancel {
             background-color: #555;
             color: white;
             border: none;
             padding: 12px 30px;
-            font-size: 1.1em;
+            font-size: 1em;
             border-radius: 30px;
+            margin: 10px;
             transition: background-color 0.3s ease;
-            width: 100%;
-            margin-bottom: 10px;
         }
-        .btn-secondary:hover {
+        .btn-cancel:hover {
             background-color: #777;
             color: white;
         }
-        h1 {
-            color: #1DB954;
-            margin-bottom: 20px;
-        }
         p {
             margin-bottom: 20px;
-        }
-        .alert {
-            margin-top: 20px;
-        }
-        .divider {
-            margin: 30px 0;
-            position: relative;
-            text-align: center;
-        }
-        .divider::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background-color: #555;
-        }
-        .divider span {
-            background-color: #282828;
-            padding: 0 10px;
-            position: relative;
-            color: #b3b3b3;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎶 Jukebox Spotify</h1>
-        <p>Crie sua própria jukebox e controle a reprodução do Spotify!</p>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}" role="alert">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <a href="{{ url_for('login') }}" class="btn btn-spotify">
-            🔓 Entrar
-        </a>
-
-        <div class="divider">
-            <span>ou</span>
+        <h1>⚠️ Conta Spotify Já Vinculada</h1>
+        
+        <div class="alert-warning-custom">
+            <p><strong>Esta conta Spotify já está vinculada a outro usuário do app.</strong></p>
+            <p>Cada usuário deve ter sua própria conta Spotify.</p>
         </div>
 
-        <a href="{{ url_for('register') }}" class="btn btn-secondary">
-            ✨ Criar Conta
-        </a>
+        <p>O que você pode fazer?</p>
+
+        <div style="margin: 30px 0;">
+            <button class="btn-option" onclick="window.location.href='{{ url_for('login_spotify') }}'">
+                🔄 Tentar com Outra Conta Spotify
+            </button>
+            <br>
+            <button class="btn-cancel" onclick="window.location.href='{{ url_for('index') }}'">
+                ❌ Voltar para Início
+            </button>
+        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

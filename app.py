@@ -5,8 +5,12 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 from database import (
+    register_user,
+    login_user,
+    verify_token,
     get_or_create_user,
-    update_user,
+    update_user_with_spotify,
+    get_user_by_auth_id,
     save_selected_playlist,
     get_last_selected_playlist,
     save_to_queue_history
@@ -51,12 +55,104 @@ def get_spotipy_client():
 
 @app.route('/')
 def index():
-    """Página inicial com opção de login."""
+    """Página inicial."""
+    if session.get('auth_id'):
+        # Usuário já está autenticado, redireciona para seleção de playlist
+        return redirect(url_for('select_playlist'))
     return render_template('index.html')
 
-@app.route('/login')
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Página e lógica de registro."""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        password_confirm = request.form.get('password_confirm')
+
+        # Validações básicas
+        if not email or not password:
+            flash('Email e senha são obrigatórios.', 'danger')
+            return redirect(url_for('register'))
+
+        if password != password_confirm:
+            flash('As senhas não correspondem.', 'danger')
+            return redirect(url_for('register'))
+
+        if len(password) < 6:
+            flash('A senha deve ter no mínimo 6 caracteres.', 'danger')
+            return redirect(url_for('register'))
+
+        # Registrar no Supabase Auth
+        user = register_user(email, password)
+        if user:
+            auth_id = str(user.id)
+            
+            # Criar usuário no banco de dados
+            db_user = get_or_create_user(
+                auth_id=auth_id,
+                email=email,
+                display_name=email.split('@')[0]  # Usa a parte antes do @ como nome inicial
+            )
+            
+            if db_user:
+                session['auth_id'] = auth_id
+                session['email'] = email
+                session['user_id'] = str(db_user['id'])  # IMPORTANTE: Adiciona user_id aqui
+                session['user_name'] = db_user['display_name']
+                flash('Registro realizado com sucesso! Agora autorize o Spotify.', 'success')
+                return redirect(url_for('login_spotify'))
+            else:
+                flash('Erro ao criar perfil do usuário.', 'danger')
+                return redirect(url_for('register'))
+        else:
+            flash('Erro ao registrar. Este email pode já estar cadastrado.', 'danger')
+            return redirect(url_for('register'))
+
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Redireciona o usuário para a página de autorização do Spotify."""
+    """Página e lógica de login."""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        if not email or not password:
+            flash('Email e senha são obrigatórios.', 'danger')
+            return redirect(url_for('login'))
+
+        # Login no Supabase Auth
+        auth_response = login_user(email, password)
+        if auth_response:
+            auth_id = str(auth_response.user.id)
+            session['auth_id'] = auth_id
+            session['email'] = email
+            
+            # Buscar usuário no banco de dados
+            user = get_user_by_auth_id(auth_id)
+            if user:
+                session['user_id'] = str(user['id'])  # IMPORTANTE: Adiciona user_id aqui
+                session['user_name'] = user['display_name']
+                flash('Login realizado com sucesso!', 'success')
+                
+                # Se o usuário já autorizou Spotify antes, vai para jukebox
+                if user.get('spotify_id'):
+                    return redirect(url_for('select_playlist'))
+                else:
+                    # Senão, pede para autorizar Spotify
+                    return redirect(url_for('login_spotify'))
+            else:
+                flash('Erro ao buscar perfil do usuário.', 'danger')
+                return redirect(url_for('login'))
+        else:
+            flash('Email ou senha incorretos.', 'danger')
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+@app.route('/login_spotify')
+def login_spotify():
+    """Redireciona para o login do Spotify."""
     sp_oauth = get_spotify_oauth()
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
@@ -64,62 +160,83 @@ def login():
 @app.route('/callback')
 def callback():
     """
-    Recebe o código de autorização do Spotify, troca por tokens
-    e os armazena na sessão. Também cria/atualiza o usuário no Supabase.
+    Recebe o código de autorização do Spotify e atualiza o perfil do usuário
+    com dados do Spotify.
     """
     sp_oauth = get_spotify_oauth()
     code = request.args.get('code')
 
-    if code:
-        try:
-            token_info = sp_oauth.get_access_token(code)
-            session['token_info'] = token_info
-            
-            # Obter informações do usuário Spotify
-            sp = spotipy.Spotify(auth=token_info['access_token'])
-            current_user = sp.current_user()
-            
-            # Salvar/atualizar usuário no Supabase
-            user = get_or_create_user(
-                spotify_id=current_user['id'],
-                display_name=current_user['display_name'],
-                email=current_user['email'],
-                profile_image_url=current_user['images'][0]['url'] if current_user['images'] else None
-            )
-            
-            if user:
-                session['user_id'] = user['id']
-                session['user_name'] = user['display_name']
-                flash('Login com Spotify realizado com sucesso!', 'success')
-                return redirect(url_for('select_playlist'))
+    if not code:
+        flash('Ocorreu um erro na autorização do Spotify.', 'danger')
+        return redirect(url_for('login_spotify'))
+
+    if not session.get('auth_id'):
+        flash('Por favor, faça login primeiro.', 'warning')
+        return redirect(url_for('login'))
+
+    try:
+        token_info = sp_oauth.get_access_token(code)
+        session['token_info'] = token_info
+        
+        # Obter informações do usuário Spotify
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+        current_user = sp.current_user()
+        
+        # Atualizar usuário no Supabase com dados do Spotify
+        auth_id = session.get('auth_id')
+        result = update_user_with_spotify(
+            auth_id=auth_id,
+            spotify_id=current_user['id'],
+            display_name=current_user['display_name'] or current_user['email'],
+            email=current_user['email'],
+            profile_image_url=current_user['images'][0]['url'] if current_user['images'] else None
+        )
+        
+        if result['success']:
+            updated_user = result['user']
+            session['user_id'] = str(updated_user['id'])
+            session['user_name'] = updated_user['display_name']
+            flash('Perfil atualizado com dados do Spotify!', 'success')
+            return redirect(url_for('select_playlist'))
+        else:
+            # Erro: Spotify ID já está vinculado a outro usuário
+            error_msg = result['error']
+            if 'já está vinculada' in error_msg:
+                flash(f"❌ Esta conta Spotify já está vinculada a outro usuário ({result.get('existing_user_email', 'desconhecido')}).\n\nPor favor, use uma conta Spotify diferente ou faça login com a outra conta.", 'danger')
             else:
-                flash('Erro ao salvar dados do usuário.', 'danger')
-                return redirect(url_for('index'))
-        except Exception as e:
-            print(f'Erro no callback: {e}')
-            flash('Ocorreu um erro durante o login.', 'danger')
-            return redirect(url_for('index'))
-    else:
-        flash('Ocorreu um erro no login com Spotify.', 'danger')
-        return redirect(url_for('index'))
+                flash(f'❌ Erro ao atualizar perfil: {error_msg}', 'danger')
+            return redirect(url_for('login_spotify'))
+            
+    except Exception as e:
+        print(f'Erro no callback: {e}')
+        flash('Ocorreu um erro durante a autorização do Spotify.', 'danger')
+        return redirect(url_for('login_spotify'))
 
 @app.route('/select_playlist')
 def select_playlist():
     """Página para selecionar a playlist desejada."""
+    if not session.get('auth_id'):
+        flash('Por favor, faça login primeiro.', 'warning')
+        return redirect(url_for('login'))
+    
     sp = get_spotipy_client()
     if not sp:
-        flash('Por favor, faça login com o Spotify.', 'warning')
-        return redirect(url_for('index'))
+        flash('Por favor, autorize o Spotify primeiro.', 'warning')
+        return redirect(url_for('login_spotify'))
     
     return render_template('select_playlist.html')
 
 @app.route('/jukebox')
 def jukebox():
     """Página principal da jukebox."""
+    if not session.get('auth_id'):
+        flash('Por favor, faça login primeiro.', 'warning')
+        return redirect(url_for('login'))
+    
     sp = get_spotipy_client()
     if not sp:
-        flash('Por favor, faça login com o Spotify.', 'warning')
-        return redirect(url_for('index'))
+        flash('Por favor, autorize o Spotify primeiro.', 'warning')
+        return redirect(url_for('login_spotify'))
     
     playlist_id = session.get('selected_playlist_id')
     if not playlist_id:
@@ -131,9 +248,12 @@ def jukebox():
 @app.route('/api/user_playlists')
 def get_user_playlists():
     """Endpoint API para obter as playlists do usuário."""
+    if not session.get('auth_id'):
+        return {'error': 'Não autenticado.'}, 401
+
     sp = get_spotipy_client()
     if not sp:
-        return {'error': 'Não autenticado. Por favor, faça login.'}, 401
+        return {'error': 'Autorização do Spotify necessária.'}, 401
 
     try:
         playlists = []
@@ -159,7 +279,7 @@ def get_user_playlists():
     except spotipy.SpotifyException as e:
         if 'The access token expired' in str(e):
             session.pop('token_info', None)
-            return {'error': 'Token de acesso expirado. Por favor, faça login novamente.'}, 401
+            return {'error': 'Token de acesso expirado. Por favor, autorize novamente.'}, 401
         print(f'Erro ao obter playlists: {e}')
         return {'error': f'Erro ao carregar as playlists: {e}'}, 500
     except Exception as e:
@@ -169,6 +289,9 @@ def get_user_playlists():
 @app.route('/api/set_playlist', methods=['POST'])
 def set_playlist():
     """Endpoint API para definir a playlist selecionada e salvar no Supabase."""
+    if not session.get('auth_id'):
+        return {'error': 'Não autenticado.'}, 401
+
     data = request.get_json()
     playlist_id = data.get('playlist_id')
 
@@ -177,17 +300,15 @@ def set_playlist():
 
     sp = get_spotipy_client()
     if not sp:
-        return {'error': 'Não autenticado.'}, 401
+        return {'error': 'Autorização do Spotify necessária.'}, 401
 
     user_id = session.get('user_id')
     if not user_id:
         return {'error': 'Usuário não identificado.'}, 401
 
     try:
-        # Verificar se a playlist existe no Spotify
         playlist = sp.playlist(playlist_id)
         
-        # Salvar a playlist selecionada no Supabase
         db_playlist = save_selected_playlist(
             user_id=user_id,
             spotify_playlist_id=playlist_id,
@@ -212,9 +333,12 @@ def set_playlist():
 @app.route('/api/playlist_tracks')
 def get_playlist_tracks():
     """Endpoint API para obter as músicas da playlist selecionada."""
+    if not session.get('auth_id'):
+        return {'error': 'Não autenticado.'}, 401
+
     sp = get_spotipy_client()
     if not sp:
-        return {'error': 'Não autenticado. Por favor, faça login.'}, 401
+        return {'error': 'Autorização do Spotify necessária.'}, 401
 
     playlist_id = session.get('selected_playlist_id')
     if not playlist_id:
@@ -245,7 +369,7 @@ def get_playlist_tracks():
     except spotipy.SpotifyException as e:
         if 'The access token expired' in str(e):
             session.pop('token_info', None)
-            return {'error': 'Token de acesso expirado. Por favor, faça login novamente.'}, 401
+            return {'error': 'Token de acesso expirado. Por favor, autorize novamente.'}, 401
         print(f'Erro ao obter playlist: {e}')
         return {'error': f'Erro ao carregar a playlist: {e}'}, 500
     except Exception as e:
@@ -255,9 +379,12 @@ def get_playlist_tracks():
 @app.route('/api/add_to_queue', methods=['POST'])
 def add_to_queue():
     """Endpoint API para adicionar uma música à fila e salvar no histórico."""
+    if not session.get('auth_id'):
+        return {'error': 'Não autenticado.'}, 401
+
     sp = get_spotipy_client()
     if not sp:
-        return {'error': 'Não autenticado. Por favor, faça login.'}, 401
+        return {'error': 'Autorização do Spotify necessária.'}, 401
 
     data = request.get_json()
     track_uri = data.get('track_uri')
@@ -269,13 +396,10 @@ def add_to_queue():
         return {'error': 'URI da faixa não fornecida.'}, 400
 
     user_id = session.get('user_id')
-    playlist_id = session.get('selected_playlist_id')
 
     try:
-        # Adicionar à fila no Spotify
         sp.add_to_queue(track_uri)
         
-        # Salvar no histórico do Supabase
         if user_id and track_id:
             save_to_queue_history(
                 user_id=user_id,
@@ -288,10 +412,10 @@ def add_to_queue():
         return {'message': 'Música adicionada à fila com sucesso!'}, 200
     except spotipy.SpotifyException as e:
         if 'No active device found' in str(e):
-            return {'error': 'Nenhum dispositivo ativo encontrado. Por favor, inicie a reprodução no Spotify em algum dispositivo primeiro.'}, 409
+            return {'error': 'Nenhum dispositivo ativo encontrado. Por favor, inicie a reprodução no Spotify.'}, 409
         elif 'The access token expired' in str(e):
             session.pop('token_info', None)
-            return {'error': 'Token de acesso expirado. Por favor, faça login novamente.'}, 401
+            return {'error': 'Token de acesso expirado. Por favor, autorize novamente.'}, 401
         print(f'Erro ao adicionar à fila: {e}')
         return {'error': f'Erro ao adicionar à fila: {e}'}, 500
     except Exception as e:
@@ -302,19 +426,27 @@ def add_to_queue():
 def logout():
     """Remove o token de sessão e desloga o usuário."""
     try:
+        session.pop('auth_id', None)
+        session.pop('email', None)
+        session.pop('user_id', None)
+        session.pop('user_name', None)
         session.pop('token_info', None)
         session.pop('selected_playlist_id', None)
         session.pop('selected_playlist_name', None)
-        session.pop('user_id', None)
-        session.pop('user_name', None)
         session.modified = True
         
-        flash('Você foi desconectado do Spotify.', 'info')
+        flash('Você foi desconectado.', 'info')
         return redirect(url_for('index'))
     except Exception as e:
         print(f'Erro ao fazer logout: {e}')
         flash('Ocorreu um erro ao desconectar. Tente novamente.', 'danger')
         return redirect(url_for('index'))
+
+@app.before_request
+def log_session():
+    """Log da sessão para debug."""
+    print(f"📍 Rota: {request.path}")
+    print(f"📦 Session data: auth_id={session.get('auth_id')}, user_id={session.get('user_id')}")
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
